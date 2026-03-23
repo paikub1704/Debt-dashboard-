@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ปลดหนี้ ด้วย AI — Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f4f3ee;
+    --bg-page: #eeede8;
+    --text-primary: #1a1a18;
+    --text-secondary: #5f5e5a;
+    --text-hint: #888780;
+    --border: rgba(0,0,0,0.12);
+    --border-hover: rgba(0,0,0,0.28);
+    --radius-md: 8px;
+    --radius-lg: 12px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg-primary: #1e1e1c;
+      --bg-secondary: #2a2a27;
+      --bg-page: #141412;
+      --text-primary: #f0ede4;
+      --text-secondary: #b4b2a9;
+      --text-hint: #888780;
+      --border: rgba(255,255,255,0.12);
+      --border-hover: rgba(255,255,255,0.28);
+    }
+  }
+
+  body {
+    font-family: 'Sarabun', 'Noto Sans Thai', sans-serif;
+    background: var(--bg-page);
+    color: var(--text-primary);
+    min-height: 100vh;
+    padding: 1.5rem 1rem 3rem;
+  }
+
+  .container { max-width: 720px; margin: 0 auto; }
+
+  /* HEADER */
+  .header { margin-bottom: 1.5rem; }
+  .header-top { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+  .header-icon { width: 40px; height: 40px; border-radius: var(--radius-md); background: #534AB7; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+  .header-title { font-size: 20px; font-weight: 600; color: var(--text-primary); }
+  .header-sub { font-size: 13px; color: var(--text-secondary); margin-left: 52px; }
+
+  /* SUMMARY */
+  .summary-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-bottom: 1.5rem; }
+  .metric { background: var(--bg-secondary); border-radius: var(--radius-md); padding: 1rem 1rem 0.85rem; }
+  .metric-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 6px; letter-spacing: 0.03em; }
+  .metric-value { font-size: 20px; font-weight: 600; color: var(--text-primary); line-height: 1.2; }
+  .metric-sub { font-size: 11px; color: var(--text-hint); margin-top: 4px; }
+
+  /* SECTION TITLE */
+  .section-title { font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 10px; letter-spacing: 0.05em; text-transform: uppercase; }
+
+  /* DEBT CARDS */
+  .debt-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 1.5rem; }
+  .debt-card { background: var(--bg-primary); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1rem 1.25rem; cursor: pointer; transition: border-color 0.15s; user-select: none; }
+  .debt-card:hover { border-color: var(--border-hover); }
+  .debt-card.open { border-color: var(--border-hover); }
+
+  .card-row { display: flex; align-items: center; gap: 10px; }
+  .card-icon { width: 38px; height: 38px; border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  .card-info { flex: 1; min-width: 0; }
+  .card-name { font-size: 15px; font-weight: 500; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card-type { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
+  .card-right { text-align: right; flex-shrink: 0; }
+  .card-amount { font-size: 15px; font-weight: 600; color: var(--text-primary); }
+  .card-rate-label { font-size: 12px; color: var(--text-secondary); margin-top: 1px; }
+  .chevron { font-size: 10px; color: var(--text-hint); flex-shrink: 0; transition: transform 0.2s; margin-left: 4px; }
+  .debt-card.open .chevron { transform: rotate(180deg); }
+
+  .prog-wrap { margin-top: 10px; }
+  .prog-bg { height: 4px; background: var(--bg-secondary); border-radius: 99px; overflow: hidden; }
+  .prog-fill { height: 4px; border-radius: 99px; }
+  .prog-labels { display: flex; justify-content: space-between; margin-top: 4px; }
+  .prog-label { font-size: 11px; color: var(--text-hint); }
+
+  .detail-panel { display: none; margin-top: 12px; padding-top: 12px; border-top: 0.5px solid var(--border); }
+  .debt-card.open .detail-panel { display: block; }
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+  .detail-box { background: var(--bg-secondary); border-radius: var(--radius-md); padding: 10px 12px; }
+  .detail-box-label { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
+  .detail-box-value { font-size: 15px; font-weight: 500; color: var(--text-primary); }
+  .detail-box-value.red { color: #C0392B; }
+  .detail-box-value.amber { color: #BA7517; }
+
+  .avl-label { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+  .avl-bg { height: 6px; background: var(--bg-secondary); border-radius: 99px; overflow: hidden; }
+  .avl-fill { height: 6px; border-radius: 99px; background: #1D9E75; }
+
+  .badge { display: inline-block; font-size: 10px; font-weight: 500; padding: 2px 8px; border-radius: 99px; margin-left: 6px; vertical-align: middle; }
+  .badge-ok { background: #E1F5EE; color: #0F6E56; }
+  .badge-warn { background: #FAEEDA; color: #854F0B; }
+  .badge-danger { background: #FCEBEB; color: #A32D2D; }
+
+  /* CHART */
+  .chart-card { background: var(--bg-primary); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; }
+  .chart-wrap { position: relative; width: 100%; height: 220px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-bottom: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--text-secondary); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
+
+  /* EDIT NOTE */
+  .edit-note { background: var(--bg-primary); border: 0.5px solid var(--border); border-radius: var(--radius-lg); padding: 1rem 1.25rem; margin-top: 1.5rem; }
+  .edit-note-title { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
+  .edit-note p { font-size: 12px; color: var(--text-secondary); line-height: 1.8; }
+  code { font-family: 'Courier New', monospace; background: var(--bg-secondary); padding: 1px 5px; border-radius: 4px; font-size: 12px; color: var(--text-primary); }
+
+  /* RESPONSIVE */
+  @media (max-width: 440px) {
+    .summary-grid { grid-template-columns: 1fr 1fr; }
+    .summary-grid .metric:last-child { grid-column: 1 / -1; }
+    .metric-value { font-size: 18px; }
+  }
+  @media (max-width: 360px) {
+    .summary-grid { grid-template-columns: 1fr; }
+    .summary-grid .metric:last-child { grid-column: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="header-top">
+      <div class="header-icon">💸</div>
+      <div class="header-title">ปลดหนี้ ภายในปี 2570</div>
+    </div>
+    <div class="header-sub">ติดตามหนี้ทั้งหมดของคุณในที่เดียว อัพเดท 23/03/2569</div>
+  </div>
+
+  <div class="summary-grid" id="summaryGrid"></div>
+
+  <p class="section-title">รายการหนี้ทั้งหมด</p>
+  <div class="debt-list" id="debtList"></div>
+
+  <p class="section-title">สัดส่วนหนี้</p>
+  <div class="chart-card">
+    <div class="legend" id="chartLegend"></div>
+    <div class="chart-wrap"><canvas id="debtChart"></canvas></div>
+  </div>
+
+
+
+</div>
+
+<script>
+// ============================================================
+//  ✏️  แก้ไขข้อมูลหนี้ของคุณที่นี่
+// ============================================================
+const debts = [
+  {
+    name:    'บัตรเครดิต UOB',    // ชื่อรายการ
+    type:    'บัตรเครดิต',           // ประเภท (แสดงใต้ชื่อ)
+    balance: 146800,                  // ยอดหนี้คงเหลือ (บาท)
+    limit:   146900,                  // วงเงินทั้งหมด (บาท)
+    rate:    16,                     // อัตราดอกเบี้ย % ต่อปี
+    minPay:  17446.60,                   // ยอดชำระขั้นต่ำต่อเดือน (บาท)
+    color:   '#534AB7',              // สีบนกราฟ (hex)
+    icon:    '💳',                   // อีโมจิไอคอน
+    iconBg:  '#EEEDFE',              // สีพื้นหลังไอคอน
+  },
+  {
+    name:    'สินเชื่อส่วนบุคคล SCB',
+    type:    'สินเชื่อส่วนบุคคล',
+    balance: 42000,
+    limit:   50000,
+    rate:    33,
+    minPay:  2206,
+    color:   '#0F6E56',
+    icon:    '🏦',
+    iconBg:  '#E1F5EE',
+  },
+  {
+    name:    'สินเชื่อส่วนบุคคล CIMB',
+    type:    'สินเชื่อส่วนบุคคล',
+    balance: 127325,
+    limit:   140000,
+    rate:    24,
+    minPay:  6366.26,
+    color:   '#185FA5',
+    icon:    '🏦',
+    iconBg:  '#E6F1FB',
+  },
+  {
+    name:    'สินเชื่อส่วนบุคคล UOB',
+    type:    'สินเชื่อรถยนต์',
+    balance: 160000,
+    limit:   200000,
+    rate:    22,
+    minPay:  5640,
+    color:   '#D85A30',
+    icon:    '🏦',
+    iconBg:  '#FAECE7',
+  },
+  {
+    name:    'สินเชื่อส่วนบุคคล กรุงศรี',
+    type:    'สินเชื่อส่วนบุคคล',
+    balance: 176000,
+    limit:   193000,
+    rate:    22,
+    minPay:  5441,
+    color:   '#BA7517',
+    icon:    '🏦',
+    iconBg:  '#FAEEDA',
+  },
+];
+// ============================================================
+//  ⛔ ห้ามแก้ไขโค้ดด้านล่างนี้
+// ============================================================
+
+function fmt(n) { return Math.round(n).toLocaleString('th-TH'); }
+function fmtK(n) { return n >= 10000 ? (n / 1000).toFixed(1) + 'K' : Math.round(n).toString(); }
+
+const totalDebt    = debts.reduce((a, d) => a + d.balance, 0);
+const totalIntYear = debts.reduce((a, d) => a + d.balance * d.rate / 100, 0);
+const totalMinPay  = debts.reduce((a, d) => a + d.minPay, 0);
+
+// --- Summary cards ---
+const summaryGrid = document.getElementById('summaryGrid');
+[
+  { label: 'ยอดหนี้รวม',             value: '฿' + fmt(totalDebt),    sub: 'ทุกรายการ' },
+  { label: 'ดอกเบี้ยปีละ (ประมาณ)', value: '฿' + fmt(totalIntYear), sub: 'ดอกเบี้ยรวม' },
+  { label: 'ยอดชำระขั้นต่ำ/เดือน',  value: '฿' + fmt(totalMinPay),  sub: 'รวมทุกรายการ' },
+].forEach(m => {
+  const el = document.createElement('div');
+  el.className = 'metric';
+  el.innerHTML = `<div class="metric-label">${m.label}</div><div class="metric-value">${m.value}</div><div class="metric-sub">${m.sub}</div>`;
+  summaryGrid.appendChild(el);
+});
+
+// --- Debt cards ---
+const list = document.getElementById('debtList');
+debts.forEach(d => {
+  const pct       = Math.round(d.balance / d.limit * 100);
+  const intYear   = Math.round(d.balance * d.rate / 100);
+  const intMonth  = Math.round(intYear / 12);
+  const avlAmt    = d.limit - d.balance;
+  const avlPct    = 100 - pct;
+  const badgeClass = d.rate >= 20 ? 'badge-danger' : d.rate >= 15 ? 'badge-warn' : 'badge-ok';
+  const badgeLabel = d.rate >= 20 ? 'ดอกเบี้ยสูงมาก' : d.rate >= 15 ? 'ดอกเบี้ยสูง' : 'ดอกเบี้ยต่ำ';
+
+  const card = document.createElement('div');
+  card.className = 'debt-card';
+  card.innerHTML = `
+    <div class="card-row">
+      <div class="card-icon" style="background:${d.iconBg}">${d.icon}</div>
+      <div class="card-info">
+        <div class="card-name">${d.name}</div>
+        <div class="card-type">${d.type}</div>
+      </div>
+      <div class="card-right">
+        <div class="card-amount">฿${fmt(d.balance)}</div>
+        <div class="card-rate-label">${d.rate}% ต่อปี</div>
+      </div>
+      <span class="chevron">▼</span>
+    </div>
+    <div class="prog-wrap">
+      <div class="prog-bg"><div class="prog-fill" style="width:${pct}%;background:${d.color}"></div></div>
+      <div class="prog-labels">
+        <span class="prog-label">ใช้ไป ${pct}%</span>
+        <span class="prog-label">วงเงิน ฿${fmt(d.limit)}</span>
+      </div>
+    </div>
+    <div class="detail-panel">
+      <div class="detail-grid">
+        <div class="detail-box">
+          <div class="detail-box-label">ดอกเบี้ยต่อปี (ประมาณ)</div>
+          <div class="detail-box-value red">฿${fmt(intYear)}</div>
+        </div>
+        <div class="detail-box">
+          <div class="detail-box-label">ดอกเบี้ยต่อเดือน</div>
+          <div class="detail-box-value amber">฿${fmt(intMonth)}</div>
+        </div>
+        <div class="detail-box">
+          <div class="detail-box-label">อัตราดอกเบี้ยต่อปี</div>
+          <div class="detail-box-value">${d.rate}%</div>
+        </div>
+        <div class="detail-box">
+          <div class="detail-box-label">ยอดชำระขั้นต่ำ/เดือน</div>
+          <div class="detail-box-value">฿${fmt(d.minPay)}</div>
+        </div>
+      </div>
+      <div>
+        <div class="avl-label">
+          วงเงินคงเหลือ ฿${fmt(avlAmt)} (${avlPct}%)
+          <span class="badge ${badgeClass}">${badgeLabel}</span>
+        </div>
+        <div class="avl-bg"><div class="avl-fill" style="width:${avlPct}%"></div></div>
+      </div>
+    </div>
+  `;
+  card.addEventListener('click', () => card.classList.toggle('open'));
+  list.appendChild(card);
+});
+
+// --- Chart legend ---
+const legend = document.getElementById('chartLegend');
+debts.forEach(d => {
+  legend.innerHTML += `
+    <span class="legend-item">
+      <span class="legend-dot" style="background:${d.color}"></span>
+      ${d.name.split(' ').slice(0, 2).join(' ')} ฿${fmtK(d.balance)}
+    </span>`;
+});
+
+// --- Doughnut chart ---
+new Chart(document.getElementById('debtChart'), {
+  type: 'doughnut',
+  data: {
+    labels: debts.map(d => d.name),
+    datasets: [{
+      data: debts.map(d => d.balance),
+      backgroundColor: debts.map(d => d.color),
+      borderWidth: 2,
+      borderColor: 'transparent',
+      hoverOffset: 8,
+    }],
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: '65%',
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => ` ฿${fmt(ctx.raw)}  (${Math.round(ctx.raw / totalDebt * 100)}%)`,
+        },
+      },
+    },
+  },
+});
+</script>
+</body>
+</html>
